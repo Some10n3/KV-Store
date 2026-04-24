@@ -26,7 +26,45 @@ class KVService:
         return record
 
     def put(self, key: str, value: JSONValue, if_version: Optional[int] = None) -> KVRecord:
-        raise NotImplementedError("Phase 2: implement PUT behavior")
+        lock = self._locks.get_lock(key)
+        with lock:
+            existing = self._store.get(key)
+            
+            if existing is not None:
+                if not check_expected_version(existing.version, if_version):
+                    raise VersionConflictError(f"Version mismatch: expected {if_version}, got {existing.version}")
+                new_version = next_version(existing.version)
+            else:
+                if if_version is not None:
+                    raise VersionConflictError(f"Version mismatch: key does not exist")
+                new_version = 1
+            
+            record = KVRecord(key=key, value=value, version=new_version)
+            self._store.set(key, record)
+            return record
 
     def patch(self, key: str, delta: JSONValue, if_version: Optional[int] = None) -> KVRecord:
-        raise NotImplementedError("Phase 2: implement PATCH behavior")
+        lock = self._locks.get_lock(key)
+        with lock:
+            existing = self._store.get(key)
+            
+            if existing is not None:
+                if not check_expected_version(existing.version, if_version):
+                    raise VersionConflictError(f"Version mismatch: expected {if_version}, got {existing.version}")
+                new_version = next_version(existing.version)
+                
+                # Shallow merge: both value and delta must be dicts
+                if isinstance(existing.value, dict) and isinstance(delta, dict):
+                    merged_value = {**existing.value, **delta}
+                else:
+                    # Full replace for any other type combination
+                    merged_value = delta
+            else:
+                if if_version is not None:
+                    raise VersionConflictError(f"Version mismatch: key does not exist")
+                new_version = 1
+                merged_value = delta
+            
+            record = KVRecord(key=key, value=merged_value, version=new_version)
+            self._store.set(key, record)
+            return record

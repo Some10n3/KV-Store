@@ -12,13 +12,15 @@ _locks = KeyLockManager()
 _service = KVService(_store, _locks)
 
 
+@kv_blueprint.errorhandler(KeyNotFoundError)
+def handle_key_not_found(error: KeyNotFoundError):
+    key = error.args[0] if error.args else "unknown"
+    return jsonify({"detail": f"Key not found: {key}"}), 404
+
+
 @kv_blueprint.get("/<string:key>")
 def get_key(key: str):
-    try:
-        record = _service.get(key)
-    except KeyNotFoundError:
-        return jsonify({"detail": f"Key not found: {key}"}), 404
-
+    record = _service.get(key)
     return jsonify({"key": record.key, "value": record.value, "version": record.version}), 200
 
 
