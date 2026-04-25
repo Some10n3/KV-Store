@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from app.models.kv_record import JSONValue
@@ -47,6 +47,12 @@ def handle_key_not_found(error: KeyNotFoundError):
 def get_key(key: str):
     record = _service.get(key)
     return jsonify({"key": record.key, "value": record.value, "version": record.version}), 200
+
+
+@kv_blueprint.get("")
+def list_local_keys():
+    node_id = current_app.config.get("NODE_ID", "node")
+    return jsonify({"node": node_id, "keys": _store.keys()}), 200
 
 
 @kv_blueprint.put("/<string:key>")
