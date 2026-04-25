@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from werkzeug.exceptions import BadRequest
 
 from app.models.kv_record import JSONValue
 from app.service.locking import KeyLockManager
@@ -23,6 +24,19 @@ def _parse_if_version() -> tuple[int | None, tuple[dict[str, str], int] | None]:
         return None, ({"detail": "Invalid ifVersion: must be an integer"}, 400)
 
 
+def _parse_json_body() -> tuple[JSONValue | None, tuple[dict[str, str], int] | None]:
+    try:
+        payload: JSONValue = request.get_json(force=True, silent=False)
+    except BadRequest:
+        return None, ({"detail": "Invalid JSON body"}, 400)
+    return payload, None
+
+
+@kv_blueprint.errorhandler(BadRequest)
+def handle_bad_request(_: BadRequest):
+    return jsonify({"detail": "Invalid JSON body"}), 400
+
+
 @kv_blueprint.errorhandler(KeyNotFoundError)
 def handle_key_not_found(error: KeyNotFoundError):
     key = error.args[0] if error.args else "unknown"
@@ -37,7 +51,10 @@ def get_key(key: str):
 
 @kv_blueprint.put("/<string:key>")
 def put_key(key: str):
-    value: JSONValue = request.get_json(force=True, silent=False)
+    value, body_error = _parse_json_body()
+    if body_error is not None:
+        body, status = body_error
+        return jsonify(body), status
     if_version, parse_error = _parse_if_version()
     if parse_error is not None:
         body, status = parse_error
@@ -53,7 +70,10 @@ def put_key(key: str):
 
 @kv_blueprint.patch("/<string:key>")
 def patch_key(key: str):
-    delta: JSONValue = request.get_json(force=True, silent=False)
+    delta, body_error = _parse_json_body()
+    if body_error is not None:
+        body, status = body_error
+        return jsonify(body), status
     if_version, parse_error = _parse_if_version()
     if parse_error is not None:
         body, status = parse_error

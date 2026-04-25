@@ -107,6 +107,18 @@ def test_patch_replaces_on_scalar_to_object() -> None:
     assert data["version"] == 2
 
 
+def test_patch_replaces_on_object_to_array() -> None:
+    _store.set("array_replace_key", KVRecord(key="array_replace_key", value={"old": "object"}, version=1))
+
+    client = app.test_client()
+    response = client.patch("/kv/array_replace_key", json=[1, 2, 3])
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["value"] == [1, 2, 3]
+    assert data["version"] == 2
+
+
 def test_patch_with_ifversion_success() -> None:
     _store.set("patch_version", KVRecord(key="patch_version", value={"x": 10}, version=3))
 
@@ -117,3 +129,27 @@ def test_patch_with_ifversion_success() -> None:
     data = response.get_json()
     assert data["value"] == {"x": 10, "y": 20}
     assert data["version"] == 4
+
+
+def test_put_invalid_json_body_returns_400() -> None:
+    client = app.test_client()
+    response = client.put(
+        "/kv/invalid-json-put",
+        data='{"broken":',
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"detail": "Invalid JSON body"}
+
+
+def test_patch_invalid_json_body_returns_400() -> None:
+    client = app.test_client()
+    response = client.patch(
+        "/kv/invalid-json-patch",
+        data='{"broken":',
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"detail": "Invalid JSON body"}
