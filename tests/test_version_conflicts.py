@@ -56,3 +56,19 @@ def test_api_patch_ifversion_mismatch_returns_409() -> None:
 
     assert response.status_code == 409
     assert "Version conflict" in response.get_json()["detail"]
+
+
+def test_api_put_invalid_ifversion_returns_400() -> None:
+    client = app.test_client()
+    response = client.put("/kv/invalid-put?ifVersion=not-an-int", json={"v": 1})
+
+    assert response.status_code == 400
+    assert "Invalid ifVersion" in response.get_json()["detail"]
+
+
+def test_api_patch_invalid_ifversion_returns_400() -> None:
+    client = app.test_client()
+    response = client.patch("/kv/invalid-patch?ifVersion=not-an-int", json={"v": 1})
+
+    assert response.status_code == 400
+    assert "Invalid ifVersion" in response.get_json()["detail"]

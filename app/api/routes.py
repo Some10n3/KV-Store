@@ -12,6 +12,17 @@ _locks = KeyLockManager()
 _service = KVService(_store, _locks)
 
 
+def _parse_if_version() -> tuple[int | None, tuple[dict[str, str], int] | None]:
+    if_version_arg = request.args.get("ifVersion")
+    if if_version_arg is None:
+        return None, None
+
+    try:
+        return int(if_version_arg), None
+    except ValueError:
+        return None, ({"detail": "Invalid ifVersion: must be an integer"}, 400)
+
+
 @kv_blueprint.errorhandler(KeyNotFoundError)
 def handle_key_not_found(error: KeyNotFoundError):
     key = error.args[0] if error.args else "unknown"
@@ -27,8 +38,10 @@ def get_key(key: str):
 @kv_blueprint.put("/<string:key>")
 def put_key(key: str):
     value: JSONValue = request.get_json(force=True, silent=False)
-    if_version_arg = request.args.get("ifVersion")
-    if_version = int(if_version_arg) if if_version_arg is not None else None
+    if_version, parse_error = _parse_if_version()
+    if parse_error is not None:
+        body, status = parse_error
+        return jsonify(body), status
 
     try:
         record = _service.put(key=key, value=value, if_version=if_version)
@@ -41,8 +54,10 @@ def put_key(key: str):
 @kv_blueprint.patch("/<string:key>")
 def patch_key(key: str):
     delta: JSONValue = request.get_json(force=True, silent=False)
-    if_version_arg = request.args.get("ifVersion")
-    if_version = int(if_version_arg) if if_version_arg is not None else None
+    if_version, parse_error = _parse_if_version()
+    if parse_error is not None:
+        body, status = parse_error
+        return jsonify(body), status
 
     try:
         record = _service.patch(key=key, delta=delta, if_version=if_version)

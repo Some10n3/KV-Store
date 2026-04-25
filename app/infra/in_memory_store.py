@@ -15,3 +15,6 @@ class InMemoryStore:
 
     def keys(self) -> list[str]:
         return list(self._data.keys())
+
+    def clear(self) -> None:
+        self._data.clear()
