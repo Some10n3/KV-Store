@@ -13,6 +13,6 @@ Double-click any `.cmd` file in this folder to run a grouped demo flow.
 - `01-part1-basic.cmd` - PUT, GET, PATCH basic API flow
 - `02-part1-version-and-errors.cmd` - ifVersion success/conflict + missing key
 - `03-part2-router-flow.cmd` - multi-node PUT/GET + key listing from router
-- `04-part1-concurrency-hint.cmd` - reminder for required Python concurrency test
+- `04-part1-concurrency-hint.cmd` - runs required 3-client concurrency proof script
 
 Each script ends with `pause` so the terminal stays open during your demo.
