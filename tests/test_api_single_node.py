@@ -58,6 +58,17 @@ def test_put_with_ifversion_success() -> None:
     assert data["version"] == 3
 
 
+def test_put_with_lowercase_ifversion_success() -> None:
+    _store.set("gamma_lower", KVRecord(key="gamma_lower", value={"v": 1}, version=2))
+
+    client = app.test_client()
+    response = client.put("/kv/gamma_lower?ifversion=2", json={"v": 2})
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["version"] == 3
+
+
 # PATCH tests
 
 def test_patch_on_nonexistent_key_creates_with_version_1() -> None:
@@ -153,3 +164,56 @@ def test_patch_invalid_json_body_returns_400() -> None:
 
     assert response.status_code == 400
     assert response.get_json() == {"detail": "Invalid JSON body"}
+
+
+# DELETE tests
+
+def test_delete_existing_key_returns_204_and_removes_key() -> None:
+    _store.set("delete_me", KVRecord(key="delete_me", value={"x": 1}, version=2))
+
+    client = app.test_client()
+    delete_response = client.delete("/kv/delete_me")
+    get_response = client.get("/kv/delete_me")
+
+    assert delete_response.status_code == 200
+    assert delete_response.get_json() == {"detail": "Deleted key delete_me successfully"}
+    assert get_response.status_code == 404
+
+
+def test_delete_missing_key_returns_404() -> None:
+    client = app.test_client()
+    response = client.delete("/kv/missing-delete")
+
+    assert response.status_code == 404
+    assert response.get_json() == {"detail": "Key not found: missing-delete"}
+
+
+def test_delete_with_ifversion_success() -> None:
+    _store.set("delete_version", KVRecord(key="delete_version", value={"x": 1}, version=5))
+
+    client = app.test_client()
+    response = client.delete("/kv/delete_version?ifVersion=5")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"detail": "Deleted key delete_version successfully"}
+    assert _store.get("delete_version") is None
+
+
+def test_delete_with_ifversion_conflict_returns_409() -> None:
+    _store.set("delete_conflict", KVRecord(key="delete_conflict", value={"x": 1}, version=3))
+
+    client = app.test_client()
+    response = client.delete("/kv/delete_conflict?ifVersion=2")
+
+    assert response.status_code == 409
+    assert response.get_json() == {"detail": "Version conflict"}
+
+
+def test_delete_invalid_ifversion_returns_400() -> None:
+    _store.set("delete_invalid_ifversion", KVRecord(key="delete_invalid_ifversion", value={"x": 1}, version=1))
+
+    client = app.test_client()
+    response = client.delete("/kv/delete_invalid_ifversion?ifVersion=not-an-int")
+
+    assert response.status_code == 400
+    assert response.get_json() == {"detail": "Invalid ifVersion: must be an integer"}

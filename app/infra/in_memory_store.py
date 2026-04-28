@@ -13,6 +13,9 @@ class InMemoryStore:
     def set(self, key: str, record: KVRecord) -> None:
         self._data[key] = record
 
+    def delete(self, key: str) -> Optional[KVRecord]:
+        return self._data.pop(key, None)
+
     def keys(self) -> list[str]:
         return list(self._data.keys())
 

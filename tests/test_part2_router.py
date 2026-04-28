@@ -11,6 +11,7 @@ class FakeRouterClient:
         self.get_calls: list[tuple[str, str, bytes]] = []
         self.put_calls: list[tuple[str, str, bytes, bytes]] = []
         self.patch_calls: list[tuple[str, str, bytes, bytes]] = []
+        self.delete_calls: list[tuple[str, str, bytes]] = []
 
     def forward_get(self, node: RouterNode, key: str, query_string: bytes) -> ForwardResult:
         self.get_calls.append((node.node_id, key, query_string))
@@ -27,6 +28,14 @@ class FakeRouterClient:
     def forward_patch(self, node: RouterNode, key: str, query_string: bytes, body: bytes) -> ForwardResult:
         self.patch_calls.append((node.node_id, key, query_string, body))
         return ForwardResult(status_code=200, body=body, content_type="application/json")
+
+    def forward_delete(self, node: RouterNode, key: str, query_string: bytes) -> ForwardResult:
+        self.delete_calls.append((node.node_id, key, query_string))
+        return ForwardResult(
+            status_code=200,
+            body=json.dumps({"detail": f"Deleted key {key} successfully"}).encode("utf-8"),
+            content_type="application/json",
+        )
 
     def list_keys(self, node: RouterNode) -> tuple[str, list[str]]:
         return node.node_id, [f"{node.node_id}:a", f"{node.node_id}:b"]
@@ -60,14 +69,17 @@ def test_router_forwards_keyed_requests_to_selected_node() -> None:
     get_response = client.get(f"/kv/{key}?ifVersion=1")
     put_response = client.put(f"/kv/{key}?ifVersion=1", json={"name": "Ari"})
     patch_response = client.patch(f"/kv/{key}?ifVersion=1", json={"rank": "gold"})
+    delete_response = client.delete(f"/kv/{key}?ifVersion=1")
 
     assert get_response.status_code == 200
     assert put_response.status_code == 200
     assert patch_response.status_code == 200
+    assert delete_response.status_code == 200
 
     assert fake_client.get_calls[0][0] == expected_node
     assert fake_client.put_calls[0][0] == expected_node
     assert fake_client.patch_calls[0][0] == expected_node
+    assert fake_client.delete_calls[0][0] == expected_node
 
 
 def test_router_get_kv_aggregates_all_nodes_as_ndjson() -> None:

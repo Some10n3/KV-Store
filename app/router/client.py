@@ -72,6 +72,10 @@ class RouterClient:
         url = self._build_url(node, f"/kv/{parse.quote(key, safe='')}", query_string)
         return self._request(method="PATCH", url=url, body=body)
 
+    def forward_delete(self, node: RouterNode, key: str, query_string: bytes) -> ForwardResult:
+        url = self._build_url(node, f"/kv/{parse.quote(key, safe='')}", query_string)
+        return self._request(method="DELETE", url=url)
+
     def list_keys(self, node: RouterNode) -> tuple[str, list[str]]:
         url = self._build_url(node, "/kv", b"")
         result = self._request(method="GET", url=url)

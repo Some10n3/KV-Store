@@ -16,6 +16,12 @@ _service = KVService(_store, _locks)
 def _parse_if_version() -> tuple[int | None, tuple[dict[str, str], int] | None]:
     if_version_arg = request.args.get("ifVersion")
     if if_version_arg is None:
+        for key, value in request.args.items():
+            if key.lower() == "ifversion":
+                if_version_arg = value
+                break
+
+    if if_version_arg is None:
         return None, None
 
     try:
@@ -91,3 +97,20 @@ def patch_key(key: str):
         return jsonify({"detail": "Version conflict"}), 409
 
     return jsonify({"key": record.key, "value": record.value, "version": record.version}), 200
+
+
+@kv_blueprint.delete("/<string:key>")
+def delete_key(key: str):
+    if_version, parse_error = _parse_if_version()
+    if parse_error is not None:
+        body, status = parse_error
+        return jsonify(body), status
+
+    try:
+        _service.delete(key=key, if_version=if_version)
+    except KeyNotFoundError:
+        return jsonify({"detail": f"Key not found: {key}"}), 404
+    except VersionConflictError:
+        return jsonify({"detail": "Version conflict"}), 409
+
+    return jsonify({"detail": f"Deleted key {key} successfully"}), 200

@@ -4,7 +4,7 @@
 
 ### Scope in this part
 
-- HTTP API for `GET /kv/{key}`, `PUT /kv/{key}`, and `PATCH /kv/{key}`
+- HTTP API for `GET /kv/{key}`, `PUT /kv/{key}`, `PATCH /kv/{key}`, and `DELETE /kv/{key}`
 - In-memory storage only (no database)
 - Per-key concurrency control with optimistic version checks
 - End-to-end tests for API behavior, conflicts, and concurrent increments
@@ -23,6 +23,9 @@
 	- Otherwise, replaces full value (for example, object -> array or object -> scalar).
 	- If `ifVersion` is provided and version mismatches, returns `409`.
 	- Request body must be valid JSON (object/array/scalar); malformed JSON returns `400`.
+- `DELETE /kv/{key}`: removes existing key and returns `204`.
+  - If key is missing, returns `404`.
+  - If `ifVersion` is provided and does not match current version, returns `409`.
 
 ## Concurrency model
 
@@ -45,13 +48,13 @@ Deadlock risk is minimized because each operation acquires at most one key lock.
 - No durability guarantees are provided in Part 1 (no WAL, snapshots, or persistence layer).
 - No high availability or redundancy is implemented in Part 1; this is a single-process node.
 - Versioning keeps only the current per-key version (no version history).
-- Per-key locking is used for writes (`PUT`, `PATCH`) so same-key updates serialize while different keys can proceed concurrently.
+- Per-key locking is used for writes (`PUT`, `PATCH`, `DELETE`) so same-key updates serialize while different keys can proceed concurrently.
 
 ## Error contract
 
 - `404 Not Found`: key does not exist on `GET /kv/{key}`.
   - Example: `{"detail":"Key not found: user:42"}`
-- `409 Conflict`: optimistic lock check failed (`ifVersion` mismatch) on `PUT` or `PATCH`.
+- `409 Conflict`: optimistic lock check failed (`ifVersion` mismatch) on `PUT`, `PATCH`, or `DELETE`.
   - Example: `{"detail":"Version conflict"}`
 - `400 Bad Request`: invalid `ifVersion` value (must be integer) on `PUT` or `PATCH`.
   - Example: `{"detail":"Invalid ifVersion: must be an integer"}`
@@ -110,9 +113,39 @@ flask --app app.main run --debug
 pytest
 ```
 
+5. Check test coverage:
+
+```bash
+pip install pytest-cov
+pytest --cov=app --cov-report=html --cov-report=term-missing
+```
+
+## Test coverage
+
+Current coverage (82% overall):
+
+| Module | Coverage | Status |
+|--------|----------|--------|
+| app/service/kv_service.py | 100% | ✓ Full |
+| app/service/locking.py | 100% | ✓ Full |
+| app/service/versioning.py | 100% | ✓ Full |
+| app/models/kv_record.py | 100% | ✓ Full |
+| app/api/routes.py | 96% | ✓ Good |
+| app/router/router.py | 94% | ✓ Good |
+| app/infra/in_memory_store.py | 93% | ✓ Good |
+| app/router/partitioning.py | 88% | ✓ Good |
+| app/main.py | 63% | ⚠ Needs work (CLI parsing code) |
+| app/router/client.py | 35% | ⚠ Needs work (HTTP error paths) |
+| app/config.py | 40% | ⚠ Needs work (config parsing) |
+
+**Coverage notes:**
+- Service and model layers are fully tested (100%).
+- API endpoints have strong coverage (94–96%).
+- Lower-coverage modules (main.py, config.py, client.py) are CLI/HTTP infrastructure that is harder to test in isolation. Integration tests via the demo scripts validate this code end-to-end.
+
 ## Current test coverage
 
-- API correctness for GET/PUT/PATCH paths
+- API correctness for GET/PUT/PATCH/DELETE paths
 - Dedicated version-conflict scenarios for PUT and PATCH
 - Input validation scenarios (invalid `ifVersion`, malformed JSON body)
 - PATCH replace behavior when delta is non-object (including object -> array/scalar)
@@ -146,7 +179,7 @@ python -m app.main --mode router --port 7000 --nodes http://127.0.0.1:7001,http:
 
 #### Router and node interaction contracts
 
-- Keyed operations (`GET/PUT/PATCH /kv/<key>`):
+- Keyed operations (`GET/PUT/PATCH/DELETE /kv/<key>`):
   - Router selects owner node using partitioning.
   - Router forwards method, query string, and JSON body to selected node.
   - Router returns node status/body transparently.
@@ -163,7 +196,7 @@ python -m app.main --mode router --port 7000 --nodes http://127.0.0.1:7001,http:
 - `app/api/routes.py`: node-mode KV behavior plus local key listing endpoint.
 - `app/router/partitioning.py`: deterministic node selection utility.
 - `app/router/client.py`: router-to-node HTTP forwarding and key-list fan-out client.
-- `app/router/routes.py`: router endpoint surface (`/kv/<key>` proxy and `/kv` NDJSON aggregation).
+- `app/router/router.py`: router endpoint surface (`/kv/<key>` proxy and `/kv` NDJSON aggregation).
 
 ### Part 2 API behavior
 
@@ -171,6 +204,7 @@ python -m app.main --mode router --port 7000 --nodes http://127.0.0.1:7001,http:
   - `GET /kv/<key>` -> forwards to owning node.
   - `PUT /kv/<key>` -> forwards to owning node.
   - `PATCH /kv/<key>` -> forwards to owning node.
+  - `DELETE /kv/<key>` -> forwards to owning node.
   - `GET /kv` -> aggregates all node key lists and returns NDJSON.
 - Node mode supports:
   - Existing Part 1 endpoints unchanged.
@@ -181,7 +215,7 @@ python -m app.main --mode router --port 7000 --nodes http://127.0.0.1:7001,http:
 - Deterministic partitioning:
   - same key always maps to same node.
 - Router forwarding correctness:
-  - `GET/PUT/PATCH` for the same key all route to the same selected node.
+  - `GET/PUT/PATCH/DELETE` for the same key all route to the same selected node.
 - Multi-node key listing aggregation:
   - `GET /kv` returns combined NDJSON across all nodes.
 

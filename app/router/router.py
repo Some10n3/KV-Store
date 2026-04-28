@@ -47,6 +47,13 @@ def proxy_patch_key(key: str):
     return _response_from_forwarded(result.status_code, result.body, result.content_type)
 
 
+@router_blueprint.delete("/<string:key>")
+def proxy_delete_key(key: str):
+    node = select_node(key, _get_router_nodes())
+    result = _get_router_client().forward_delete(node, key, request.query_string)
+    return _response_from_forwarded(result.status_code, result.body, result.content_type)
+
+
 @router_blueprint.get("")
 def aggregate_keys():
     nodes = _get_router_nodes()

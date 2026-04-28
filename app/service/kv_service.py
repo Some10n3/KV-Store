@@ -68,3 +68,15 @@ class KVService:
             record = KVRecord(key=key, value=merged_value, version=new_version)
             self._store.set(key, record)
             return record
+
+    def delete(self, key: str, if_version: Optional[int] = None) -> None:
+        lock = self._locks.get_lock(key)
+        with lock:
+            existing = self._store.get(key)
+            if existing is None:
+                raise KeyNotFoundError(key)
+
+            if not check_expected_version(existing.version, if_version):
+                raise VersionConflictError(f"Version mismatch: expected {if_version}, got {existing.version}")
+
+            self._store.delete(key)

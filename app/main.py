@@ -4,7 +4,7 @@ from flask import Flask
 
 from app.api.routes import kv_blueprint
 from app.config import RouterNode, parse_router_nodes
-from app.router.routes import router_blueprint
+from app.router.router import router_blueprint
 
 
 def create_app(
